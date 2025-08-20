@@ -2,28 +2,27 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine
 
-# PostgreSQL connection
-engine = create_engine("postgresql://gavcard:@localhost:5432/maang_data")
+# --- Load DB credentials from secrets.toml ---
+db = st.secrets["database"]
 
+# --- Create DB connection URL ---
+db_url = f"postgresql://{db.user}:{db.password}@{db.host}:{db.port}/{db.dbname}"
+engine = create_engine(db_url)
+
+# --- Whitelisted tickers to avoid SQL injection ---
+VALID_TICKERS = ["aapl", "msft", "goog", "amzn", "meta"]
+
+# --- UI ---
 st.title("📈 MAANG Stock Dashboard")
+ticker = st.selectbox("Select a stock ticker:", VALID_TICKERS)
 
-# Ticker options
-tickers = ["meta", "aapl", "amzn", "nflx", "googl"]
-ticker = st.selectbox("Choose a stock ticker:", tickers)
+# --- Fetch data ---
+try:
+    query = f'SELECT * FROM "{ticker}" ORDER BY "Date" DESC LIMIT 100'
+    df = pd.read_sql(query, engine)
 
-# Query the latest 100 rows
-query = f'SELECT * FROM "{ticker}" ORDER BY "Date" DESC LIMIT 100'
-df = pd.read_sql(query, engine)
+    st.subheader(f"Latest 100 entries for {ticker.upper()}")
+    st.dataframe(df)
 
-# Display table
-st.subheader(f"Latest Data for {ticker.upper()}")
-st.dataframe(df)
-
-# Line chart for stock price
-st.subheader(f"{ticker.upper()} Closing Price Over Time")
-st.line_chart(df.sort_values("Date")["Close"])
-
-# Optional volume chart
-if st.checkbox("Show volume chart"):
-    st.subheader("Trading Volume")
-    st.bar_chart(df.sort_values("Date")["Volume"])
+except Exception as e:
+    st.error(f"Error loading data: {e}")
